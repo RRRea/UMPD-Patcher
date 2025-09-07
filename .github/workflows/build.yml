@@ -1,0 +1,67 @@
+name: UMAPATCHER
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_apk_url:
+        description: 'Base APK Download URL'
+        required: true
+        default: 'https://d7.qoo-apk.com/6172/apk/jp.co.cygames.umamusume-566-108528326-1756864865.apk'
+      split_apk_url:
+        description: 'Split APK Download URL (arm64-v8a)'
+        required: true
+        default: 'https://d.qoo-apk.com/6172/apk/jp.co.cygames.umamusume-566-config.arm64_v8a-67184471-1756864865.apk'
+      libmain_so_url:
+        description: 'libmain.so Patch URL'
+        required: true
+        default: 'https://github.com/Hachimi-Hachimi/Hachimi/releases/download/v0.14.1/libmain-arm64-v8a.so'
+      apk_version:
+        description: 'Original APK Version (e.g., 2.2.0)'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: 📂 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+
+      - name: 📝 Extract libmain.so Version
+        id: extract_version
+        run: |
+          URL="${{ github.event.inputs.libmain_so_url }}"
+          VERSION=$(echo "$URL" | grep -oP 'releases/download/\K[^/]+')
+          echo "LIBMAIN_VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: 🚀 Run UMAPATCHER Script
+        run: |
+          python upatcher.py \
+            --baseapk_dlink ${{ github.event.inputs.base_apk_url }} \
+            --splitapk_dlink ${{ github.event.inputs.split_apk_url }} \
+            --libmain_url ${{ github.event.inputs.libmain_so_url }}
+
+      - name: 📦 Upload Patched XAPK to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: umamusume.xapk
+          tag_name: v${{ github.event.inputs.apk_version }}
+          body: |
+            This is an automatic release of the patched Umamusume XAPK.
+            
+            APK Version: **${{ github.event.inputs.apk_version }}**
+            
+            - Patched with the latest `libmain.so` version **${{ env.LIBMAIN_VERSION }}**.
+            - Supports Arm64-v8a architecture.
+
+      - name: 📦 Upload Patched XAPK
+        uses: actions/upload-artifact@v4
+        with:
+          name: uma-xapk-patch
+          path: umamusume.xapk
